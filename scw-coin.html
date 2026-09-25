@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SupplyChainWise Coin — Silver</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js",
+    "three/addons/loaders/GLTFLoader.js": "https://unpkg.com/three@0.184.0/examples/jsm/loaders/GLTFLoader.js",
+    "three/addons/exporters/OBJExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
+    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js": "sha384-nbwtoZENJD3Vq+ACK0CuGQdPMuDWHkamC2KJD70EV5nfg6jQjfppKOea07YJN+N3",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js": "sha384-VofkvpG6HERhFCYbsUOHeNXBCqID2nfqkQqnVzE1jc/oPcz+qJ13ADdXH08hE+cQ"
+  }
+}
+</script>
+<style>
+  html, body { margin:0; height:100%; background:transparent; overflow:hidden; }
+  three-d-stage { display:block; width:100%; height:100%; }
+  three-d-stage:not(:defined) { visibility:hidden; }
+</style>
+</head>
+<body>
+<three-d-stage name="supplychainwise-coin-silver" background="transparent"></three-d-stage>
+<script src="three-d-stage.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const stage = document.querySelector('three-d-stage');
+await stage.ready;
+const scene = stage._scene, renderer = stage._renderer, cam = stage._camera;
+
+/* decorative embed: no authoring chrome */
+stage.shadowRoot.querySelector('.toolbar')?.remove();
+stage.shadowRoot.querySelector('.note')?.remove();
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+
+/* ── Environment: strip lights, not a soft box ───────────────────────────
+   Coins are photographed against narrow bright bands with dark gaps
+   between them. Metal then reflects light/dark banding across the relief,
+   which is what makes engraving read; one big soft-box reflects an even
+   grey and the detail vanishes. */
+const envScene = new THREE.Scene();
+const panel = (w, h, colour, intensity, pos, rot) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: colour }));
+  m.material.color.multiplyScalar(intensity);
+  m.position.set(...pos);
+  m.rotation.set(...rot);
+  envScene.add(m);
+};
+envScene.add(new THREE.Mesh(
+  new THREE.SphereGeometry(14, 24, 16),
+  new THREE.MeshBasicMaterial({ color: 0x5e666b, side: THREE.BackSide })
+));
+/* overhead strips running across the coin */
+panel(11, 0.95, 0xffffff, 7.0, [0, 6.0,  3.4], [-Math.PI / 2.15, 0, 0]);
+panel(11, 0.70, 0xffffff, 5.2, [0, 6.2,  0.9], [-Math.PI / 2.15, 0, 0]);
+panel(11, 0.55, 0xffffff, 3.4, [0, 6.4, -1.4], [-Math.PI / 2.15, 0, 0]);
+/* side kickers — one warm-neutral, one brand cyan, for edge separation */
+panel(0.9, 9, 0xffffff, 4.6, [ 6.6, 1.2, 2.2], [0, -Math.PI / 2.3, 0]);
+panel(0.7, 9, 0xffffff, 2.6, [ 6.9, -0.6, -1.0], [0, -Math.PI / 2.3, 0]);
+panel(0.9, 9, 0x74dbef, 3.6, [-6.8, 1.0, 1.8], [0,  Math.PI / 2.3, 0]);
+/* dark floor keeps the lower half of the field from washing out */
+panel(12, 6, 0x1e2429, 1.0, [0, -5.4, 1], [Math.PI / 2, 0, 0]);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+scene.environment = pmrem.fromScene(envScene, 0.02).texture;
+pmrem.dispose();
+
+/* stage's own lights step back — the rig below does the shaping */
+scene.traverse((o) => {
+  if (o.isHemisphereLight) o.intensity = 0.22;
+  if (o.isDirectionalLight) o.intensity = o.castShadow ? 1.15 : 0.15;
+});
+
+/* ── View-anchored raking key ────────────────────────────────────────────
+   Held at a fixed up-left offset from the camera, so no matter which way
+   the coin is turned there is always a grazing highlight running across
+   the relief. A rim light sits opposite for edge definition. */
+const key = new THREE.DirectionalLight(0xffffff, 2.35);
+const keyTarget = new THREE.Object3D();
+scene.add(key, keyTarget);
+key.target = keyTarget;
+
+const rim = new THREE.DirectionalLight(0xdff3fb, 1.1);
+const rimTarget = new THREE.Object3D();
+scene.add(rim, rimTarget);
+rim.target = rimTarget;
+
+/* a tight spot straight down the barrel picks out the centre medallion */
+const fill = new THREE.SpotLight(0xffffff, 14, 0, THREE.MathUtils.degToRad(26), 0.55, 1.6);
+const fillTarget = new THREE.Object3D();
+scene.add(fill, fillTarget);
+fill.target = fillTarget;
+
+const gltf = await new GLTFLoader().loadAsync('scw-coin-silver.glb');
+const coin = gltf.scene;
+
+/* ── Material pass: satin, not mirror ───────────────────────────────────
+   A polished mirror shows only what it reflects; nudging roughness up
+   spreads each highlight into a readable gradient over the relief.
+   Recesses go darker so every groove keeps a dark core at small sizes. */
+coin.traverse((o) => {
+  if (!o.isMesh) return;
+  o.castShadow = true;
+  o.receiveShadow = true;
+  const mats = Array.isArray(o.material) ? o.material : [o.material];
+  for (const m of mats) {
+    if (!m || !m.isMeshStandardMaterial) continue;
+    m.envMapIntensity = 1.15;
+    if (m.normalMap) m.normalScale.multiplyScalar(1.9);
+    switch (m.name) {
+      case 'proof_brushed':  m.roughness = 0.30; break;   // was a mirror
+      case 'proof_polished': m.roughness = 0.24; break;
+      case 'proof_engraved':                              // recessed ground
+        m.roughness = 0.72;
+        m.color.multiplyScalar(0.62);
+        break;
+      case 'proof_trace':    m.roughness = 0.20; break;   // raised circuitry
+      case 'proof_node':     m.roughness = 0.16; break;
+      case 'proof_landmass': m.roughness = 0.38; break;
+      case 'proof_boss':     m.roughness = 0.34; break;
+    }
+  }
+});
+
+coin.rotation.set(0, 0, 0);                    // GLB is already face-on to +Z
+stage.setObject(coin);
+
+/* fill more of the frame, straight-on view, zoom on a short leash */
+const controls = stage._controls;
+const target = controls.target.clone();
+const d = cam.position.distanceTo(target) * 0.68;
+cam.position.copy(target).add(new THREE.Vector3(0, 0.08, 1).normalize().multiplyScalar(d));
+controls.minDistance = d * 0.9;
+controls.maxDistance = d * 1.12;
+controls.zoomSpeed = 0.4;
+controls.enablePan = false;
+controls.autoRotate = false;
+controls.update();
+
+/* ── Motion: presentation sway, not a turntable ──────────────────────────
+   A full 360° spin hides the engraved face for half of every loop. A slow
+   sway keeps the detail toward the camera the whole time while the shifting
+   angle sweeps highlights across it. Hover slows it for a closer read. */
+const pivot = coin;
+const SWAY_YAW   = THREE.MathUtils.degToRad(23);
+const SWAY_PITCH = THREE.MathUtils.degToRad(6.5);
+let t = 0, speed = 1, dragging = false;
+const clock = new THREE.Clock();
+
+stage.addEventListener('pointerenter', () => { speed = 0.28; });
+stage.addEventListener('pointerleave', () => { speed = 1; });
+controls.addEventListener('start', () => { dragging = true; });
+
+const baseLoop = stage._loop;
+stage._loop = () => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  t += dt * speed;
+
+  if (!dragging) {
+    pivot.rotation.y = Math.sin(t * 0.42) * SWAY_YAW;
+    pivot.rotation.x = Math.sin(t * 0.31 + 1.1) * SWAY_PITCH;
+    pivot.rotation.z = Math.sin(t * 0.19) * THREE.MathUtils.degToRad(2.2);
+  }
+
+  /* keep the rig locked to the current view direction */
+  const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
+  const up    = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
+  const fwd   = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 2);
+  const c = controls.target;
+
+  keyTarget.position.copy(c);
+  key.position.copy(c)
+    .addScaledVector(right, -2.6)
+    .addScaledVector(up, 2.9)
+    .addScaledVector(fwd, 2.2);
+
+  rimTarget.position.copy(c);
+  rim.position.copy(c)
+    .addScaledVector(right, 3.1)
+    .addScaledVector(up, -1.4)
+    .addScaledVector(fwd, 1.2);
+
+  fillTarget.position.copy(c);
+  fill.position.copy(c).addScaledVector(fwd, 4.2).addScaledVector(up, 0.5);
+
+  baseLoop();
+};
+renderer.setAnimationLoop(stage._loop);
+</script>
+</body>
+</html>
